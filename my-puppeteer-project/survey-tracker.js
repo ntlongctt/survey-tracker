@@ -26,7 +26,8 @@
 //   timelines: UserAction[];
 // };
 
-const api_end_point = "https://tgm-backend.onrender.com/api";
+// const api_end_point = "https://tgm-backend.onrender.com/api";
+const api_end_point = "https://reshldz.link:3010/api";
 
 const NEXT_QUESTION_BTN_ID = "sg_NextButton";
 

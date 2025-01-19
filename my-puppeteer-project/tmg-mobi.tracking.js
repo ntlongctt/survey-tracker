@@ -37,7 +37,8 @@
     </form>
  */
 
-const api_end_point = "https://tgm-backend.onrender.com/api";
+// const api_end_point = "https://tgm-backend.onrender.com/api";
+const api_end_point = "https://reshldz.link:3010/api";
 
 const NEXT_QUESTION_BTN_ID = "sg_NextButton";
 
@@ -399,29 +400,56 @@ class UserAnswerStrategy extends TrackingStrategy {
 
 class NextQuestionButtonStrategy extends TrackingStrategy {
 	execute() {
+		this.initObserver();
+	}
+
+	initObserver() {
 		try {
-			const nextButton = document.getElementById(NEXT_QUESTION_BTN_ID);
-			if (nextButton) {
-				nextButton.addEventListener("click", () => {
-					const clickTime = new Date();
-					this.questionTracking.setNextQuestionBtnClick(clickTime);
-					const details = {
-						buttonId: NEXT_QUESTION_BTN_ID,
-						attempt:
-							this.questionTracking.timeline.timeline.filter(
-								(event) => event.type === "NEXT_BUTTON_CLICK",
-							).length + 1,
-					};
-					handleEventCapture(
-						EVENT_TYPES.next_button_click,
-						details,
-						this.questionTracking,
-					);
-				});
+			let nextButton = document.querySelector(
+				".btnPreviewNext.questionPreview__btn_right",
+			);
+			if (!nextButton) {
+				nextButton = document.getElementById("rcsrv-submit-btn");
 			}
+			if (!nextButton) return;
+
+			const observer = new MutationObserver(() => {
+				if (nextButton.disabled) {
+					this.handleNextQuestion();
+					observer.disconnect(); // Stop observing after the first trigger
+				}
+			});
+
+			observer.observe(nextButton, {
+				attributes: true,
+				attributeFilter: ["disabled"],
+			});
 		} catch (error) {
 			console.error("Error in NextQuestionButtonStrategy:", error);
 		}
+	}
+
+	handleNextQuestion() {
+		const questionText = extractQuestionText();
+		const answers = this.questionTracking.answer;
+		const startTime = this.questionTracking.startTime;
+		const endTime = new Date();
+		this.questionTracking.setEndTime(endTime);
+
+		handleEventCapture(
+			EVENT_TYPES.question_end,
+			{
+				answers,
+				questionText,
+				startTime,
+				endTime,
+			},
+			this.questionTracking,
+		);
+
+		// Reinitialize the observer for the next question
+		// Because in the main survey phase, the page build with the ReactJs and this strategy will not work
+		this.initObserver();
 	}
 }
 
@@ -429,18 +457,29 @@ class PageUnloadStrategy extends TrackingStrategy {
 	execute() {
 		try {
 			window.addEventListener("beforeunload", () => {
-				const unloadTime = new Date();
-				this.questionTracking.setEndTime(unloadTime);
-				const details = { reason: "page_unload" };
-				handleEventCapture(
-					EVENT_TYPES.question_end,
-					details,
-					this.questionTracking,
-				);
+				this.handlePageUnload();
 			});
 		} catch (error) {
 			console.error("Error in PageUnloadStrategy:", error);
 		}
+	}
+
+	handlePageUnload() {
+		const questionText = extractQuestionText();
+		const answers = this.questionTracking.answer;
+		const startTime = this.questionTracking.startTime;
+		const endTime = new Date();
+
+		handleEventCapture(
+			EVENT_TYPES.question_end,
+			{
+				answers,
+				questionText,
+				startTime,
+				endTime,
+			},
+			this.questionTracking,
+		);
 	}
 }
 
@@ -515,28 +554,29 @@ class QuestionTracking {
 	};
 }
 
-// Add utility function to extract question text
+// Function to extract question text
 const extractQuestionText = () => {
 	try {
-		const questionElement = document.querySelector(".sg-question-title");
-		if (!questionElement) return "Unknown Question";
+		// Check for main survey question text
+		let questionElement = document.querySelector(
+			".questionPreview__text.recruitment__questionText",
+		);
 
-		// Get all text content
-		let text = questionElement.textContent || "";
+		// Fallback to pre-survey question text
+		if (!questionElement) {
+			questionElement = document.querySelector(
+				"#rcsrv .control-label.has-star",
+			);
+		}
 
-		// Remove question number (e.g., "1.")
-		text = text.replace(/^\d+\.\s*/, "");
+		if (questionElement) {
+			return questionElement.textContent.trim();
+		}
 
-		// Remove required asterisk and screen reader text
-		text = text.replace(/\*This question is required\./, "");
-
-		// Clean up extra whitespace
-		text = text.trim();
-
-		return text;
+		return "Unknown Question";
 	} catch (error) {
 		console.error("Error extracting question text:", error);
-		return "Unknown Question";
+		return "";
 	}
 };
 
@@ -612,81 +652,198 @@ class PreSurveyAnswerStrategy extends TrackingStrategy {
 		try {
 			const form = document.getElementById("rcsrv");
 			if (form) {
-				form.addEventListener("submit", (event) => {
-					// Optionally prevent form submission for testing
-					// event.preventDefault();
+				// Add listeners for radio buttons and checkboxes
+				const inputs = form.querySelectorAll(
+					'input[type="radio"], input[type="checkbox"]',
+				);
+				for (const input of inputs) {
+					input.addEventListener("change", () => {
+						this.captureAnswer(input);
+					});
+				}
 
-					const formData = new FormData(form);
-					let answers = "";
-
-					for (const [key, value] of formData.entries()) {
-						if (key === "ProfileQuestion[value]") {
-							// Check if the input is a radio or checkbox
-							const inputElement = form.querySelector(
-								`input[name="${key}"][value="${value}"]`,
-							);
-							if (
-								inputElement &&
-								(inputElement.type === "radio" ||
-									inputElement.type === "checkbox")
-							) {
-								// Get the label text for the radio or checkbox
-								const labelElement = inputElement.closest("label");
-								if (labelElement) {
-									answers = labelElement.textContent.trim();
-								}
-							} else {
-								// For other input types, use the value directly
-								answers = value;
-							}
-						}
-					}
-
-					this.questionTracking.setAnswer(answers);
-					handleEventCapture(
-						EVENT_TYPES.answer_question,
-						{ answers },
-						this.questionTracking,
-					);
-
-					// Optionally, you can submit the form after capturing the data
-					// form.submit();
-				});
+				// Add listener for textarea
+				const textarea = form.querySelector(
+					'textarea[name="ProfileQuestion[value]"]',
+				);
+				if (textarea) {
+					textarea.addEventListener("change", () => {
+						this.captureAnswer(textarea);
+					});
+				}
 			}
 		} catch (error) {
 			console.error("Error in PreSurveyAnswerStrategy:", error);
 		}
 	}
+
+	captureAnswer(inputElement) {
+		let answers = "";
+
+		if (inputElement.type === "radio" || inputElement.type === "checkbox") {
+			const labelElement = inputElement.closest("label");
+			if (labelElement) {
+				answers = labelElement.textContent.trim();
+			}
+		} else if (inputElement.tagName.toLowerCase() === "textarea") {
+			answers = inputElement.value.trim();
+		}
+
+		this.questionTracking.setAnswer(answers);
+		handleEventCapture(
+			EVENT_TYPES.answer_question,
+			{ answers },
+			this.questionTracking,
+		);
+	}
 }
 
-// Update startTracking to include PreSurveyAnswerStrategy
-const startTracking = async (projectId) => {
-	try {
-		console.log(`Starting tracking for projectId: ${projectId}`);
-		const sessionId = await startSurvey(projectId);
-		const questionText = extractQuestionText();
-		console.log(`Tracking question: ${questionText}`);
-		const questionTracking = new QuestionTracking(
-			questionText,
-			sessionId,
-			projectId,
+// Function to check if the current page is a main survey
+const isMainSurveyPage = () => {
+	const urlPattern = /\/ms\/\w+$/; // Adjust the pattern as needed
+	return urlPattern.test(window.location.pathname);
+};
+
+// Strategy for handling main survey answers
+class MainSurveyAnswerStrategy extends TrackingStrategy {
+	execute() {
+		try {
+			if (!isMainSurveyPage()) return;
+
+			const questionBody = document.getElementById("questionBody");
+			if (!questionBody) return;
+
+			// Use MutationObserver to detect changes in the ranking selections
+			const observer = new MutationObserver(() => {
+				this.captureAnswers();
+			});
+
+			observer.observe(questionBody, {
+				childList: true,
+				subtree: true,
+				attributes: true,
+				attributeFilter: ["class"],
+			});
+
+			// Add input event listener for text inputs
+			questionBody.addEventListener("input", (event) => {
+				if (event.target.matches('input[type="text"]')) {
+					this.captureAnswers();
+				}
+			});
+		} catch (error) {
+			console.error("Error in MainSurveyAnswerStrategy:", error);
+		}
+	}
+
+	captureAnswers() {
+		const answers = [];
+
+		// Capture ranking answers
+		const rankingBlocks = document.querySelectorAll(
+			".questionPreview__rankingBlock",
 		);
 
-		questionTracking
-			.addStrategy(MouseClickStrategy)
-			.addStrategy(DevToolsStrategy)
-			.addStrategy(VisibilityChangeStrategy)
-			.addStrategy(ResolutionChangeStrategy)
-			.addStrategy(TextSelectionStrategy)
-			.addStrategy(TextCopyStrategy)
-			.addStrategy(TextPasteStrategy)
-			.addStrategy(PreSurveyAnswerStrategy)
-			.addStrategy(NextQuestionButtonStrategy)
-			.addStrategy(PageUnloadStrategy)
-			.runStrategies();
+		for (const block of rankingBlocks) {
+			const rankValue = block
+				.querySelector(".questionPreview__rankingValue")
+				.textContent.trim();
+			const label = block
+				.querySelector(".questionPreview__rankingCheckbox span span")
+				.textContent.trim();
+			if (rankValue !== "#") {
+				answers.push(`${label} (Rank: ${rankValue})`);
+			}
+		}
 
-		return questionTracking;
-	} catch (error) {
-		console.error("Error initializing tracking functions:", error);
+		// Capture AnswerFieldChoiceWithText
+		const selectedOption = document.querySelector(
+			'input[type="radio"]:checked',
+		);
+		if (selectedOption) {
+			const label = selectedOption.closest("label");
+			if (label) {
+				let answerText = label.textContent.trim();
+				const textInput = selectedOption
+					.closest(".AnswerFieldChoiceWithText__item")
+					.querySelector('input[type="text"]');
+				if (textInput?.value?.trim()) {
+					answerText += `: ${textInput.value.trim()}`;
+				}
+				answers.push(answerText);
+			}
+		}
+
+		// Capture text input
+		const textInput = document.querySelector(
+			'.questionPreview__answer input[type="text"]',
+		);
+		if (textInput?.value?.trim()) {
+			answers.push(textInput.value.trim());
+		}
+
+		if (answers.length > 0) {
+			// Retry extracting the question text before submitting
+			const questionText = extractQuestionText();
+			this.questionTracking.setAnswer(answers.join(", "));
+			this.questionTracking.questionText = questionText;
+
+			handleEventCapture(
+				EVENT_TYPES.answer_question,
+				{ answers },
+				this.questionTracking,
+			);
+		}
+	}
+}
+
+const onDocumentReady = (callback) => {
+	if (document.readyState === "complete") {
+		// Document is already fully loaded
+		callback();
+	} else {
+		window.addEventListener("load", callback);
 	}
 };
+
+onDocumentReady(() => {
+	const startTracking = async (projectId) => {
+		try {
+			console.log(`Starting tracking for projectId: ${projectId}`);
+			const sessionId = await startSurvey(projectId);
+			const questionText = extractQuestionText();
+			console.log(`Tracking question: ${questionText}`);
+			const questionTracking = new QuestionTracking(
+				questionText,
+				sessionId,
+				projectId,
+			);
+
+			questionTracking
+				.addStrategy(MouseClickStrategy)
+				.addStrategy(DevToolsStrategy)
+				.addStrategy(VisibilityChangeStrategy)
+				.addStrategy(ResolutionChangeStrategy)
+				.addStrategy(TextSelectionStrategy)
+				.addStrategy(TextCopyStrategy)
+				.addStrategy(TextPasteStrategy)
+				.addStrategy(PreSurveyAnswerStrategy)
+				.addStrategy(MainSurveyAnswerStrategy)
+				.addStrategy(NextQuestionButtonStrategy)
+				// .addStrategy(PageUnloadStrategy)
+				.runStrategies();
+
+			return questionTracking;
+		} catch (error) {
+			console.error("Error initializing tracking functions:", error);
+		}
+	};
+
+	// Start tracking after DOM is fully loaded
+	const projectId = getProjectIdFromUrl();
+	if (projectId) {
+		startTracking(projectId);
+	} else {
+		console.error("Failed to start tracking: projectId is null");
+	}
+});
