@@ -731,6 +731,14 @@ class MainSurveyAnswerStrategy extends TrackingStrategy {
 					this.captureAnswers();
 				}
 			});
+
+			// Add change event listener for radio inputs
+			const radioInputs = questionBody.querySelectorAll('input[type="radio"]');
+			for (const input of radioInputs) {
+				input.addEventListener("change", () => {
+					this.captureAnswers();
+				});
+			}
 		} catch (error) {
 			console.error("Error in MainSurveyAnswerStrategy:", error);
 		}
