@@ -125,6 +125,9 @@ const defaultEventCaptureHandler = async (trackingData, questionTracking) => {
 				answer: questionTracking.answer,
 			};
 
+			// clear timeline after sending data
+			questionTracking.clearTimeline();
+
 			// Send the complete data to the server
 			const response = await updateSessionData(
 				questionTracking.sessionId,
@@ -448,8 +451,9 @@ class NextQuestionButtonStrategy extends TrackingStrategy {
 		);
 
 		// Reinitialize the observer for the next question
-		// Because in the main survey phase, the page build with the ReactJs and this strategy will not work
 		this.initObserver();
+
+		this.questionTracking.reinitializeStrategies();
 	}
 }
 
@@ -502,6 +506,7 @@ class QuestionTracking {
 	sessionId;
 	projectId;
 	answer;
+	reinitializeStack = [];
 
 	constructor(questionText, sessionId, projectId) {
 		this.questionText = questionText;
@@ -533,6 +538,10 @@ class QuestionTracking {
 	addStrategy = (StrategyClass) => {
 		const strategy = new StrategyClass(this);
 		this.strategies.push(strategy);
+		// auto register reinitialize strategy
+		if (typeof strategy.reinitialize === "function") {
+			this.reinitializeStack.push(strategy);
+		}
 		return this;
 	};
 
@@ -552,6 +561,19 @@ class QuestionTracking {
 		this.answer = answer;
 		return this;
 	};
+
+	reinitializeStrategies() {
+		// Reinitialize strategies that need to be reset for each new question
+		for (const strategy of this.reinitializeStack) {
+			if (typeof strategy.reinitialize === "function") {
+				strategy.reinitialize();
+			}
+		}
+	}
+
+	clearTimeline() {
+		this.timeline = new Timeline();
+	}
 }
 
 // Function to extract question text
@@ -623,6 +645,9 @@ const sendSurveyData = async (data) => {
 			data,
 		);
 		console.log("Survey data sent successfully");
+
+		// Clear the timeline after sending data
+		data.questionTracking.clearTimeline();
 	} catch (error) {
 		console.error("Error sending survey data:", error);
 	}
@@ -717,16 +742,37 @@ class MainSurveyAnswerStrategy extends TrackingStrategy {
 			const questionBody = document.getElementById("questionBody");
 			if (!questionBody) return;
 
-			// Use MutationObserver to detect changes in the ranking selections
-			const observer = new MutationObserver(() => {
-				this.captureAnswers();
+			// Use MutationObserver to detect when the new question is fully loaded
+			const observer = new MutationObserver((mutationsList) => {
+				let newQuestionLoaded = false;
+
+				for (const mutation of mutationsList) {
+					if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+						// Check for specific elements that indicate a new question
+						if (
+							mutation.target?.nodeType === Node.ELEMENT_NODE &&
+							mutation.target?.className?.includes("questionPreview__text")
+						) {
+							newQuestionLoaded = true;
+							break;
+						}
+					}
+				}
+
+				if (newQuestionLoaded) {
+					observer.disconnect(); // Stop observing once the new question is loaded
+
+					// Delay reinitialization to ensure the DOM is stable
+					setTimeout(() => {
+						this.captureAnswers();
+						this.initListeners(); // Reinitialize listeners for the new question
+					}, 500); // Adjust the delay as needed
+				}
 			});
 
 			observer.observe(questionBody, {
 				childList: true,
 				subtree: true,
-				attributes: true,
-				attributeFilter: ["class"],
 			});
 
 			// Add input event listener for text inputs
@@ -739,6 +785,16 @@ class MainSurveyAnswerStrategy extends TrackingStrategy {
 			// Add change event listener for radio inputs
 			const radioInputs = questionBody.querySelectorAll('input[type="radio"]');
 			for (const input of radioInputs) {
+				input.addEventListener("change", () => {
+					this.captureAnswers();
+				});
+			}
+
+			// Add change event listener for checkbox inputs
+			const checkboxInputs = questionBody.querySelectorAll(
+				'input[type="checkbox"]',
+			);
+			for (const input of checkboxInputs) {
 				input.addEventListener("change", () => {
 					this.captureAnswers();
 				});
@@ -786,6 +842,17 @@ class MainSurveyAnswerStrategy extends TrackingStrategy {
 			}
 		}
 
+		// Capture checkbox answers
+		const selectedCheckboxes = document.querySelectorAll(
+			'input[type="checkbox"]:checked',
+		);
+		for (const checkbox of selectedCheckboxes) {
+			const label = checkbox.closest("label");
+			if (label) {
+				answers.push(label.textContent.trim());
+			}
+		}
+
 		// Capture text input
 		const textInput = document.querySelector(
 			'.questionPreview__answer input[type="text"]',
@@ -806,6 +873,10 @@ class MainSurveyAnswerStrategy extends TrackingStrategy {
 				this.questionTracking,
 			);
 		}
+	}
+
+	reinitialize() {
+		// This method is now managed by the MutationObserver
 	}
 }
 
@@ -842,7 +913,7 @@ onDocumentReady(() => {
 				.addStrategy(PreSurveyAnswerStrategy)
 				.addStrategy(MainSurveyAnswerStrategy)
 				.addStrategy(NextQuestionButtonStrategy)
-				// .addStrategy(PageUnloadStrategy)
+				// .addStrategy(new PageUnloadStrategy(questionTracking))
 				.runStrategies();
 
 			return questionTracking;
