@@ -707,6 +707,10 @@ const isMainSurveyPage = () => {
 // Strategy for handling main survey answers
 class MainSurveyAnswerStrategy extends TrackingStrategy {
 	execute() {
+		this.initListeners();
+	}
+
+	initListeners() {
 		try {
 			if (!isMainSurveyPage()) return;
 
@@ -774,7 +778,7 @@ class MainSurveyAnswerStrategy extends TrackingStrategy {
 				let answerText = label.textContent.trim();
 				const textInput = selectedOption
 					.closest(".AnswerFieldChoiceWithText__item")
-					.querySelector('input[type="text"]');
+					?.querySelector('input[type="text"]');
 				if (textInput?.value?.trim()) {
 					answerText += `: ${textInput.value.trim()}`;
 				}
