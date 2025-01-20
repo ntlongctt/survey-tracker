@@ -1,14 +1,3 @@
-// ==UserScript==
-// @name         Long Test
-// @namespace    http://tampermonkey.net/
-// @version      2025-01-08
-// @description  TGM Mobi no BE
-// @author       You
-// @match        *://tgm.mobi/*
-// @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
-// @grant        none
-// ==/UserScript==
-
 /**
   the survey is separated into 2 parts:
   1: the pre-survey which the user will answer some trap questions,
