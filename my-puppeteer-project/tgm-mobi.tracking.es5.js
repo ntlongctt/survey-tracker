@@ -397,13 +397,17 @@ class NextQuestionButtonStrategy extends TrackingStrategy {
 
 	initObserver() {
 		try {
+			debugger;
 			let nextButton = document.querySelector(
 				".btnPreviewNext.questionPreview__btn_right",
 			);
 			if (!nextButton) {
 				nextButton = document.getElementById("rcsrv-submit-btn");
 			}
-			if (!nextButton) return;
+			if (!nextButton) {
+				console.log("Next button not found");
+				return;
+			}
 
 			const observer = new MutationObserver(() => {
 				if (nextButton.disabled) {
@@ -878,7 +882,7 @@ const onDocumentReady = (callback) => {
 	}
 };
 
-console.log("lib version 0.0.1");
+console.log("lib version 0.0.2");
 onDocumentReady(() => {
 	const startTracking = async (projectId) => {
 		try {
