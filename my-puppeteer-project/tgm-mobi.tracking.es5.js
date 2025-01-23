@@ -846,6 +846,7 @@ class MainSurveyAnswerStrategy extends TrackingStrategy {
 }
 
 const onDocumentReady = (callback) => {
+	debugger;
 	if (document.readyState === "complete") {
 		// Document is already fully loaded
 		callback();
