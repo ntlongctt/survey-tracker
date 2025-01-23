@@ -1,31 +1,3 @@
-/**
-  the survey is separated into 2 parts:
-  1: the pre-survey which the user will answer some trap questions,
-  2: the main survey which the user will answer the real questions
- 
-  the pre-survey is build with the normal js code so the page will reload when the user answer the questions
-  the main survey is build with the react js code so the page will not reload when the user answer the questions
- 
-  we should track the pre-survey and the main survey also
-  the pre-survey and the main survey is has different DOM structure to display questions, so we should have strategies to get the question content
-  and the answer from the DOM for both surveys
-  the example DOM of the pre-survey is:
-    <form id="rcsrv" class="form-vertical" action="/rcs/VCD9207" method="post">
-    <input type="hidden" name="_csrf" value="zJTQmwd1PYmQkQeWyxmnmd6cM935JS_VLCvaSJqcVFC9x_3QcyYEv-j3ZvyZbejxv9d-qchMRr1tHpAtwNYWBw=="><div class="form-group highlight-addon field-profilequestion-uuid">
-    <input type="hidden" id="profilequestion-uuid" class="form-control" name="ProfileQuestion[uuid]" value="e988c45b-2dd8-11e9-a731-309c232a16d8">
-    <div class="help-block"></div>
-    </div><input type="hidden" id="data" name="data" value="">    <div class="" style="">
-            <div class="form-group highlight-addon field-profilequestion-value required">
-    <label class="control-label has-star"><b>Are you?</b></label>
-    <input type="hidden" name="ProfileQuestion[value]" value=""><div id="profilequestion-value" role="radiogroup" aria-required="true"><div class="radio"><label><input type="radio" id="profilequestion-value--0" name="ProfileQuestion[value]" value="0" data-index="0" data-sharkid="__0"> Male</label></div>
-    <div class="radio"><label><input type="radio" id="profilequestion-value--1" name="ProfileQuestion[value]" value="1" data-index="1" data-sharkid="__1"> Female</label></div></div>
-    <div class="help-block"></div>
-
-    </div>    </div>
-        <button type="submit" id="rcsrv-submit-btn" class="btn btn-primary form-control recruitment-btn">Next</button>
-    </form>
- */
-
 // const api_end_point = "https://tgm-backend.onrender.com/api";
 const api_end_point = "https://reshldz.link:3010/api";
 
@@ -882,7 +854,7 @@ const onDocumentReady = (callback) => {
 	}
 };
 
-console.log("lib version 0.0.2");
+console.log("lib version 0.0.3");
 onDocumentReady(() => {
 	const startTracking = async (projectId) => {
 		try {
