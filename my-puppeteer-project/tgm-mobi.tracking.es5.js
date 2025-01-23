@@ -855,7 +855,7 @@ const onDocumentReady = (callback) => {
 	}
 };
 
-console.log("lib version 0.0.3");
+console.log("lib version 0.0.4");
 onDocumentReady(() => {
 	const startTracking = async (projectId) => {
 		try {
